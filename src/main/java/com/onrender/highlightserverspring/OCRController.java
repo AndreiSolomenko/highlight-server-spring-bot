@@ -88,7 +88,7 @@ public class OCRController {
             byte[] requestBody = concat(metaBytes, fileBytes, endBytes);
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:5050/ocr"))
+                    .uri(URI.create("https://highlight-server-spring-bot.onrender.com/ocr"))
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .POST(HttpRequest.BodyPublishers.ofByteArray(requestBody))
                     .build();
