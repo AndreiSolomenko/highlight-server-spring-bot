@@ -2,9 +2,25 @@ FROM maven:3.8.3-openjdk-17 AS build
 COPY . .
 RUN mvn clean package -DskipTests
 
-FROM openjdk:17.0.2-jdk-slim
-COPY --from=build /target/highlight-server-spring-0.0.1-SNAPSHOT.jar highlightserverspring.jar
+# === Runtime Stage ===
+FROM python:3.10-slim as runtime
 
-EXPOSE 8080
+# Встановлюємо Java
+RUN apt-get update && apt-get install -y openjdk-17-jre curl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-ENTRYPOINT ["java","-jar","highlightserverspring.jar"]
+# Встановлюємо залежності PaddleOCR
+RUN pip install flask paddleocr opencv-python
+
+# Копіюємо jar-файл зі стадії build
+COPY --from=build /target/highlight-server-spring-0.0.1-SNAPSHOT.jar /app/highlightserverspring.jar
+
+# Копіюємо paddle_server.py
+COPY paddle_server.py /app/paddle_server.py
+
+WORKDIR /app
+
+# === Запускаємо Python + Java одночасно через bash ===
+EXPOSE 8080 5050
+
+CMD bash -c "python3 paddle_server.py & java -jar highlightserverspring.jar"

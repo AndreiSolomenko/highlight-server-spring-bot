@@ -1,5 +1,7 @@
 package com.onrender.highlightserverspring;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.sourceforge.tess4j.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -8,6 +10,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.*;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import javax.imageio.ImageIO;
@@ -43,15 +46,15 @@ public class OCRController {
                 return response;
             }
 
-//            BufferedImage bufferedImage = ImageIO.read(image.getInputStream());
-//            ITesseract instance = new Tesseract();
-//
-//            instance.setDatapath("/usr/share/tesseract-ocr/4.00/tessdata");
-//            instance.setLanguage(language);
+            BufferedImage bufferedImage = ImageIO.read(image.getInputStream());
+            ITesseract instance = new Tesseract();
 
-//            String recognizedText = instance.doOCR(bufferedImage);
+            instance.setDatapath("/usr/share/tesseract-ocr/4.00/tessdata");
+            instance.setLanguage(language);
 
-            String recognizedText = "HELLO WORLD!!!";
+            String recognizedText = callPaddleOCR(image);
+
+
 
             response.put("text", recognizedText);
 
@@ -64,6 +67,53 @@ public class OCRController {
         } catch (Exception e) {
             throw new RuntimeException("OCR error", e);
         }
+    }
+
+
+    private String callPaddleOCR(MultipartFile image) {
+        try {
+            String boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+            String CRLF = "\r\n";
+
+            // Заголовки multipart-даних
+            StringBuilder sb = new StringBuilder();
+            sb.append("--").append(boundary).append(CRLF);
+            sb.append("Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"").append(CRLF);
+            sb.append("Content-Type: ").append(image.getContentType()).append(CRLF).append(CRLF);
+
+            byte[] fileBytes = image.getBytes();
+            byte[] metaBytes = sb.toString().getBytes();
+            byte[] endBytes = (CRLF + "--" + boundary + "--" + CRLF).getBytes();
+
+            byte[] requestBody = concat(metaBytes, fileBytes, endBytes);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:5050/ocr"))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(requestBody))
+                    .build();
+
+            HttpClient client = HttpClient.newHttpClient();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, String> json = mapper.readValue(response.body(), new TypeReference<>() {});
+            return json.get("text");
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to call PaddleOCR server", e);
+        }
+    }
+
+    private byte[] concat(byte[]... arrays) {
+        int totalLength = Arrays.stream(arrays).mapToInt(a -> a.length).sum();
+        byte[] result = new byte[totalLength];
+        int offset = 0;
+        for (byte[] array : arrays) {
+            System.arraycopy(array, 0, result, offset, array.length);
+            offset += array.length;
+        }
+        return result;
     }
 
 
